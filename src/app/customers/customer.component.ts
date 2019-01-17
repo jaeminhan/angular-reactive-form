@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
-import { NgForm, FormGroup, FormControl } from '@angular/forms';
+// REACTIVE FORM MUST*
+import { FormGroup, FormControl } from '@angular/forms';
 
 import { Customer } from './customer';
 
@@ -23,8 +24,17 @@ export class CustomerComponent implements OnInit {
     });
   }
 
-  save(customerForm: NgForm) {
-    console.log(customerForm.form);
-    console.log('Saved: ' + JSON.stringify(customerForm.value));
+  populateTestData(): void {
+    this.customerForm.setValue({
+      firstName: 'Jaemin',
+      lastName: 'Han',
+      email: 'jaemin@gmail.com',
+      sendCatalog: false
+    });
+  }
+
+  save() {
+    console.log(this.customerForm);
+    console.log('Saved: ' + JSON.stringify(this.customerForm.value));
   }
 }
