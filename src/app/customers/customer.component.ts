@@ -1,8 +1,40 @@
 import { Component, OnInit } from '@angular/core';
 // REACTIVE FORM MUST*
-import { FormGroup, FormBuilder, Validators } from '@angular/forms';
+import { FormGroup, FormBuilder, Validators, AbstractControl, ValidatorFn, FormArray } from '@angular/forms';
+
+import { debounceTime } from 'rxjs/operators';
 
 import { Customer } from './customer';
+
+// function ratingRange(c: AbstractControl): { [key: string]: boolean } | null {
+//   if (c.value !== null && (isNaN(c.value) || c.value < 1 || c.value > 5)) {
+//     return { 'range': true };
+//   }
+//   return null;
+// }
+
+function emailMatcher(c: AbstractControl): { [key: string]: boolean } | null {
+  const emailControl = c.get('email');
+  const confirmControl = c.get('confirmEmail');
+
+  if (emailControl.pristine || confirmControl.pristine) {
+    return null;
+  }
+  if (emailControl.value === confirmControl.value) {
+    return null;
+  }
+  return { 'match': true };
+}
+
+// Accept more than one param! Validator function
+function ratingRange(min: number, max: number): ValidatorFn {
+  return (c: AbstractControl): { [key: string]: boolean } | null => {
+    if (c.value !== null && (isNaN(c.value) || c.value < min || c.value > max)) {
+      return {'range': true};
+    }
+    return null;
+  };
+}
 
 @Component({
   selector: 'app-customer',
@@ -12,6 +44,16 @@ import { Customer } from './customer';
 export class CustomerComponent implements OnInit {
   customerForm: FormGroup;
   customer: Customer = new Customer();
+  emailMessage: string;
+
+  get addresses(): FormArray {
+    return <FormArray>this.customerForm.get('addresses');
+  }
+
+  private validationMessages = {
+    required: 'Please enter your email address.',
+    email: 'Please enter a valid email address.'
+  };
 
   constructor(private fb: FormBuilder) {}
 
@@ -19,31 +61,68 @@ export class CustomerComponent implements OnInit {
     this.customerForm = this.fb.group({
       firstName: ['', [Validators.required, Validators.minLength(3)]],
       lastName: ['', [Validators.required, Validators.maxLength(50)]],
-      email: ['', [Validators.required, Validators.email]],
+      emailGroup: this.fb.group({
+        email: ['', [Validators.required, Validators.email]],
+        confirmEmail: ['', [Validators.required]],
+      }, {validator: emailMatcher}),
       phone: '',
       notification: 'email',
-      sendCatalog: true
+      rating: [null, ratingRange(1, 5)],
+      sendCatalog: true,
+      addresses: this.fb.array([ this.buildAddress() ])
     });
 
-    // this.customerForm = new FormGroup({
-    //   firstName: new FormControl(),
-    //   lastName: new FormControl(),
-    //   email: new FormControl(),
-    //   sendCatalog: new FormControl(true)
-    // });
+    // Watching for changes! EXAMPLE CONSOLE.LOG
+    // this.customerForm.get('notification').valueChanges.subscribe(
+    //   value => console.log('Clicked', value)
+    // );
+    this.customerForm.get('notification').valueChanges.subscribe(
+      value => this.setNotification(value)
+    );
+
+    const emailControl = this.customerForm.get('emailGroup.email');
+    emailControl.valueChanges.pipe(
+      debounceTime(1000)
+    ).subscribe(
+      value => this.setMessage(emailControl)
+    );
   }
 
-  populateTestData(): void {
-    this.customerForm.setValue({
-      firstName: 'Jaemin',
-      lastName: 'Han',
-      sendCatalog: false
+  addAddress(): void {
+    this.addresses.push(this.buildAddress());
+  }
+
+  // instance of our address block FormGroup
+  buildAddress(): FormGroup {
+    return this.fb.group({
+      addressType: 'home',
+      address1: '',
+      address2: '',
+      city: '',
+      state: '',
+      zip: '',
     });
   }
+
+  // populateTestData(): void {
+  //   this.customerForm.setValue({
+  //     firstName: 'Jaemin',
+  //     lastName: 'Han',
+  //     sendCatalog: false
+  //   });
+  // }
 
   save() {
     console.log(this.customerForm);
     console.log('Saved: ' + JSON.stringify(this.customerForm.value));
+  }
+
+  setMessage(c: AbstractControl): void {
+    this.emailMessage = '';
+    if ((c.touched || c.dirty) && c.errors) {
+      this.emailMessage = Object.keys(c.errors).map(
+        key => this.emailMessage += this.validationMessages[key]).join(' ');
+    }
   }
 
   // Set Validator for any required fields
